@@ -3,6 +3,18 @@
 using Plots
 ```
 
+```julia
+"""
+    histo
+
+    Está función hace un histograma en el los valores x>0
+"""
+function histo(conjunt,titu;normalizado=true,bins=200)
+    histogram(conjunt,leg=false, normed=normalizado, title=titu,
+    xaxis=("Visita",(max(0,min(conjunt...)),max(conjunt...))),ylabel="Frecuencia",bin=bins)
+end
+```
+
 # SIR
 
 \begin{eqnarray}
@@ -15,6 +27,10 @@ Con:
 
    - $\beta$ la tasa de transmición.
    - $\gamma$ la tasa de recuperación.
+
+Número reproductivo básico:
+
+   - $R_0=\dfrac{\beta}{\gamma}$
 
 ```julia
 function SIR(t,β,γ,I₀,S₀,R₀)
@@ -29,21 +45,57 @@ function SIR(t,β,γ,I₀,S₀,R₀)
         S_t[i+1] = S_t[i]-k*I_t[i]*S_t[i]
         I_t[i+1] = I_t[i]+k*I_t[i]*S_t[i]-γ*R_t[i]
         R_t[i+1] = R_t[i]+γ*R_t[i]
+       # if I_t[i+1] < 0
+        #    I_t[i+1] = 0
+        #end
     end
     return S_t,I_t,R_t
 end
 ```
 
 ```julia
-dias = 100
-γ=1/14
-β=0.1
-I₀=30
-S₀=10000
-R₀=5
-s,i,r = SIR(dias,β,γ,I₀,S₀,R₀)
+dias = 140
 t=0:1:dias
+s,i,r=SIR(dias,0.2,1/7,10,1e9,3)
+#plot(t,s)
 plot(t,i)
+plot!(t,r)
+```
+
+```julia
+function random_SIR(dias,repeticiones;I₀=30,S₀=1e7,R₀=5,Rmin=2.2,Rmax=3.49,
+                    gmax=1/7,gmin=1/7)
+    I = []
+    S = []
+    R = []
+    for i in 0:dias
+        push!(I,Array{Float64,1}(undef, repeticiones))
+        push!(S,Array{Float64,1}(undef, repeticiones))
+        push!(R,Array{Float64,1}(undef, repeticiones))
+    end
+    for i in 1:repeticiones
+        γ = rand()*(gmax-gmin)+gmin
+        β = γ*(rand()*(Rmax-Rmin)+Rmin)
+        s_r,i_r,r_r = SIR(dias,β,γ,I₀,S₀,R₀)
+        for j in 1:dias+1
+            I[j][i] = i_r[j]
+            S[j][i] = s_r[j]
+            R[j][i] = r_r[j]
+        end
+    end
+    t=0:1:dias
+    return t,S,I,R
+end
+```
+
+```julia
+t,S,I,R=random_SIR(100,100000)
+histo(I[50],"Infectados día 50",bins=100)
+```
+
+```julia
+t,S,I,R=random_SIR(100,100000;Rmax=8.4,Rmin=2.95)
+histo(I[50],"Infectados día 50",bins=100)
 ```
 
 # SEIR
@@ -83,17 +135,55 @@ end
 ```
 
 ```julia
-dias = 50
-γ=1/14
-β=1.39
-σ=1/10
-I₀=20
-S₀=10000
-R₀=9
-E₀=60
-s,e,i,r = SEIR(dias,σ,β,γ,I₀,S₀,R₀,E₀)
+dias = 270
 t=0:1:dias
+s,e,i,r=SEIR(dias,1/7,0.2,1/14,10,1000000000,2,90)
 plot(t,i)
+plot!(t,r)
+```
+
+```julia
+function random_SEIR(dias,repeticiones;I₀=30,S₀=1e7,R₀=5,E₀=90,Rmin=2.2,Rmax=3.49,
+                        amax=1/5,amin=1/5,gmax=1/7,gmin=1/7)
+    I = []
+    S = []
+    R = []
+    E = []
+    for i in 0:dias
+        push!(I,Array{Float64,1}(undef, repeticiones))
+        push!(S,Array{Float64,1}(undef, repeticiones))
+        push!(R,Array{Float64,1}(undef, repeticiones))
+        push!(E,Array{Float64,1}(undef, repeticiones))
+    end
+    σ = rand()*(amax-amin)+amin
+    γ = rand()*(gmax-gmin)+gmin
+    for i in 1:repeticiones
+        β = γ*(rand()*(Rmax-Rmin)+Rmin)
+        s_r,e_r,i_r,r_r = SEIR(dias,σ,β,γ,I₀,S₀,R₀,E₀)
+        for j in 1:dias+1
+            I[j][i] = i_r[j]
+            S[j][i] = s_r[j]
+            R[j][i] = r_r[j]
+            E[j][i] = e_r[j]
+        end
+    end
+    t=0:1:dias
+    return t,S,E,I,R
+end
+```
+
+```julia
+t,S,E,I,R=random_SEIR(100,100000,Rmax=8.4,Rmin=2.95,S₀=1e10)
+histo(I[50],"Infectados día 50",bins=100)
+```
+
+```julia
+t,S,E,I,R=random_SEIR(150,100000,Rmax=2.95,Rmin=2.68,S₀=1e10)
+histo(I[60],"Infectados día 60",bins=100)
+```
+
+```julia
+histo(I[118],"Infectados día 118",bins=500)
 ```
 
 ```julia
