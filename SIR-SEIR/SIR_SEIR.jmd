@@ -18,9 +18,9 @@ end
 # SIR
 
 \begin{eqnarray}
-S(t+1) & = & S(t) - \frac{\beta I(t) S(t)}{N},               & \quad S(0) \ge 0,\\
-I(t+1) & = & I(t) + \frac{\beta I(t) S(t)}{N} - \gamma R(t), & \quad I(0) \ge 0,\\
-R(t+1) & = & R(t) + \gamma R(t),                             & \quad R(0) \ge 0.\\
+S(t+1) & = & S(t) - \frac{\beta I(t)S(t)}{N},               & \quad S(0) \ge 0,\\
+I(t+1) & = & I(t) + \frac{\beta I(t) S(t)}{N} - \gamma I(t), & \quad I(0) \ge 0,\\
+R(t+1) & = & R(t) + \gamma I(t),                             & \quad R(0) \ge 0.\\
 \end{eqnarray}
 
 Con:
@@ -40,26 +40,22 @@ function SIR(t,β,γ,I₀,S₀,R₀)
     S_t[1] = S₀
     I_t[1] = I₀
     R_t[1] = R₀
-    k = β/(I₀+S₀+R₀)
+    N₀ = I₀+S₀+R₀
+    k = β/N₀
     for i in 1:t
-        S_t[i+1] = S_t[i]-k*I_t[i]*S_t[i]
-        I_t[i+1] = I_t[i]+k*I_t[i]*S_t[i]-γ*R_t[i]
-        R_t[i+1] = R_t[i]+γ*R_t[i]
-       # if I_t[i+1] < 0
-        #    I_t[i+1] = 0
-        #end
+        S_t[i+1] = S_t[i]*(1-k*I_t[i])
+        I_t[i+1] = I_t[i]*(1+k*S_t[i]-γ)#R_t[i]
+        R_t[i+1] = R_t[i]+γ*I_t[i]
     end
     return S_t,I_t,R_t
 end
 ```
 
 ```julia
-dias = 140
+dias = 250
 t=0:1:dias
-s,i,r=SIR(dias,0.2,1/7,10,1e9,3)
-#plot(t,s)
+s,i,r=SIR(dias,0.3,1/7,10,1e9,3)
 plot(t,i)
-plot!(t,r)
 ```
 
 ```julia
@@ -90,12 +86,11 @@ end
 
 ```julia
 t,S,I,R=random_SIR(100,100000)
-histo(I[50],"Infectados día 50",bins=100)
+histo(I[100],"Infectados día 100",bins=100)
 ```
 
 ```julia
-t,S,I,R=random_SIR(100,100000;Rmax=8.4,Rmin=2.95)
-histo(I[50],"Infectados día 50",bins=100)
+histo(I[62],"Infectados día 62",bins=200)
 ```
 
 # SEIR
@@ -103,8 +98,8 @@ histo(I[50],"Infectados día 50",bins=100)
 \begin{eqnarray}
 S(t+1) & = & S(t) - \frac{\beta I(t) S(t)}{N},                & \quad S(0) \ge 0,\\
 E(t+1) & = & E(t) + \frac{\beta I(t) S(t)}{N}  - \sigma E(t), & \quad E(0) \ge 0,\\
-I(t+1) & = & I(t) + \sigma E(t) - \gamma R(t),                & \quad I(0) \ge 0,\\
-R(t+1) & = & R(t) + \gamma R(t),                              & \quad R(0) \ge 0.\\
+I(t+1) & = & I(t) + \sigma E(t) - \gamma I(t),                & \quad I(0) \ge 0,\\
+R(t+1) & = & R(t) + \gamma I(t),                              & \quad R(0) \ge 0.\\
 \end{eqnarray}
 
 Con:
@@ -125,20 +120,21 @@ function SEIR(t,σ,β,γ,I₀,S₀,R₀,E₀)
     R_t[1] = R₀
     k = β/(S₀+E₀+I₀+R₀)
     for i in 1:t
-        S_t[i+1] = S_t[i]-k*I_t[i]*S_t[i]
-        E_t[i+1] = E_t[i]+k*I_t[i]*S_t[i]-σ*E_t[i]
-        I_t[i+1] = I_t[i]+σ*E_t[i]-γ*R_t[i]
-        R_t[i+1] = R_t[i]+γ*R_t[i]
+        S_t[i+1] = S_t[i]*(1-k*I_t[i])
+        E_t[i+1] = E_t[i]*(1-σ)+k*I_t[i]*S_t[i]
+        I_t[i+1] = I_t[i]*(1-γ)+σ*E_t[i]
+        R_t[i+1] = R_t[i]+γ*I_t[i]
     end
     return S_t,E_t,I_t,R_t
 end
 ```
 
 ```julia
-dias = 270
+dias = 400
 t=0:1:dias
 s,e,i,r=SEIR(dias,1/7,0.2,1/14,10,1000000000,2,90)
 plot(t,i)
+plot!(t,s)
 plot!(t,r)
 ```
 
@@ -178,12 +174,16 @@ histo(I[50],"Infectados día 50",bins=100)
 ```
 
 ```julia
-t,S,E,I,R=random_SEIR(150,100000,Rmax=2.95,Rmin=2.68,S₀=1e10)
-histo(I[60],"Infectados día 60",bins=100)
+t,S,E,I,R=random_SEIR(300,100000,Rmax=2.95,Rmin=2.68,S₀=1e10)
+histo(I[10],"Infectados día 10",bins=100)
 ```
 
 ```julia
-histo(I[118],"Infectados día 118",bins=500)
+histo(I[40],"Infectados día 40",bins=100)
+```
+
+```julia
+histo(I[80],"Infectados día 80",bins=100)
 ```
 
 ```julia
