@@ -1,17 +1,42 @@
 
 ```julia
-using Plots
+using Gaston 
+using CSV
 ```
 
 ```julia
 """
-    histo
+    ma_color(I;paso=5)
 
-    Está función hace un histograma en el los valores x>0
+    Esta función crea una matriz de enteros cuyos valores representan las 
+    densidades de un grupo (por ejemplo infectados) en un
+    determinado día, resaltando el rango donde se repite con mayor frecuencia.
 """
-function histo(conjunt,titu;normalizado=true,bins=200)
-    histogram(conjunt,leg=false, normed=normalizado, title=titu,
-    xaxis=("Visita",(max(0,min(conjunt...)),max(conjunt...))),ylabel="Frecuencia",bin=bins)
+function ma_color(I;paso=5,color=10) 
+    a = [max(I[i]...) for i in 1:length(I)]
+    dom = max(a...):-max(a...)/paso:0.0
+    I_t = zeros(Int64,length(dom)-1,length(I))
+    for i in 1:length(I)
+            for j in 1:length(I[i])
+                n = caja(I[i][j],dom)
+                I_t[n,i]+=1
+            end
+            I_t[:,i]=round.(I_t[:,i].*color/max(I_t[:,i]...))
+    end
+    return I_t,max(a...)/paso
+end
+"""
+    caja
+
+    Esta función devuelve caja a la que se pertenece
+"""
+function caja(num,dom)
+   for i in 1:length(dom)-1
+        if num >= dom[i+1]
+            return i
+        end
+    end
+    return length(dom)-1
 end
 ```
 
@@ -27,70 +52,49 @@ Con:
 
    - $\beta$ la tasa de transmición.
    - $\gamma$ la tasa de recuperación.
+   - $N = S_0+I_0+R_0$
 
 Número reproductivo básico:
 
    - $R_0=\dfrac{\beta}{\gamma}$
 
 ```julia
-function SIR(t,β,γ,I₀,S₀,R₀)
-    S_t = Array{Float64,1}(undef, t+1)
-    I_t = Array{Float64,1}(undef, t+1)
-    R_t = Array{Float64,1}(undef, t+1)
-    S_t[1] = S₀
-    I_t[1] = I₀
-    R_t[1] = R₀
-    N₀ = I₀+S₀+R₀
-    k = β/N₀
-    for i in 1:t
-        S_t[i+1] = S_t[i]*(1-k*I_t[i])
-        I_t[i+1] = I_t[i]*(1+k*S_t[i]-γ)#R_t[i]
-        R_t[i+1] = R_t[i]+γ*I_t[i]
-    end
-    return S_t,I_t,R_t
-end
+include("Modelo_SIR.jl")
+using Main.Modelo_SIR
 ```
 
 ```julia
 dias = 250
 t=0:1:dias
-s,i,r=SIR(dias,0.3,1/7,10,1e9,3)
-plot(t,i)
+s,i,r=SIR(dias;β=0.3,γ=1/7,S₀=1e9,I₀=10,R₀=3)
+plot(t,i,title=:Infectados,Axes(xlabel=:Dias,ylabel=:Infectados_prueba))
 ```
 
 ```julia
-function random_SIR(dias,repeticiones;I₀=30,S₀=1e7,R₀=5,Rmin=2.2,Rmax=3.49,
-                    gmax=1/7,gmin=1/7)
-    I = []
-    S = []
-    R = []
-    for i in 0:dias
-        push!(I,Array{Float64,1}(undef, repeticiones))
-        push!(S,Array{Float64,1}(undef, repeticiones))
-        push!(R,Array{Float64,1}(undef, repeticiones))
-    end
-    for i in 1:repeticiones
-        γ = rand()*(gmax-gmin)+gmin
-        β = γ*(rand()*(Rmax-Rmin)+Rmin)
-        s_r,i_r,r_r = SIR(dias,β,γ,I₀,S₀,R₀)
-        for j in 1:dias+1
-            I[j][i] = i_r[j]
-            S[j][i] = s_r[j]
-            R[j][i] = r_r[j]
-        end
-    end
-    t=0:1:dias
-    return t,S,I,R
-end
+t,S,I,R,N=random_SIR(200,100000;S₀=6e4,I₀=30,R₀=5,Rmin=2.5,Rmax=3.3,gmax=1/10,gmin=1/15)
+P,n = ma_color(I,paso=100)
+label = "'1:"*""*string(N*n)*""*"'"
+imagesc(P, title=:Infectados,Axes(title = label, palette = :summer))
+save(term = "png",
+     output= "calor_1.png",
+     font = "Consolas,18",
+     size = "1280,900",
+     linewidth = 1,
+     background = "white")
 ```
 
 ```julia
-t,S,I,R=random_SIR(100,100000)
-histo(I[100],"Infectados día 100",bins=100)
-```
-
-```julia
-histo(I[62],"Infectados día 62",bins=200)
+t,S,I,R=random_SIR_2(200,80000;S0max=5e4,S0min=7e4,I0max=30,I0min=50
+                    ,R0max=10,R0min=5,Rmin=2.5,Rmax=3.3,gmax=1/10,gmin=1/15)
+P,n = ma_color(I,paso=100)
+label = "'1:"*""*string(n)*""*"'"
+imagesc(P, title=:Infectados_2,Axes(title = label, palette = :summer))
+save(term = "png",
+     output= "calor_2.png",
+     font = "Consolas,18",
+     size = "1280,900",
+     linewidth = 1,
+     background = "white")
 ```
 
 # SEIR
@@ -107,84 +111,105 @@ Con:
    - $\beta$ la tasa de transmición.
    - $\gamma$ la tasa de recuperación.
    - $\sigma$ la tasa de incubación.
+   - $N=S_0+E_0+I_0+R_0$
+   
+Número reproductivo básico:
+
+   - $R_0=\dfrac{\beta}{\gamma}$
 
 ```julia
-function SEIR(t,σ,β,γ,I₀,S₀,R₀,E₀)
-    S_t = Array{Float64,1}(undef, t+1)
-    E_t = Array{Float64,1}(undef, t+1)
-    I_t = Array{Float64,1}(undef, t+1)
-    R_t = Array{Float64,1}(undef, t+1)
-    S_t[1] = S₀
-    E_t[1] = E₀
-    I_t[1] = I₀
-    R_t[1] = R₀
-    k = β/(S₀+E₀+I₀+R₀)
-    for i in 1:t
-        S_t[i+1] = S_t[i]*(1-k*I_t[i])
-        E_t[i+1] = E_t[i]*(1-σ)+k*I_t[i]*S_t[i]
-        I_t[i+1] = I_t[i]*(1-γ)+σ*E_t[i]
-        R_t[i+1] = R_t[i]+γ*I_t[i]
-    end
-    return S_t,E_t,I_t,R_t
-end
+include("Modelo_SEIR.jl")
+using Main.Modelo_SEIR
 ```
 
 ```julia
 dias = 400
 t=0:1:dias
-s,e,i,r=SEIR(dias,1/7,0.2,1/14,10,1000000000,2,90)
-plot(t,i)
-plot!(t,s)
-plot!(t,r)
+s,e,i,r=SEIR(dias;γ=1/7,β=0.3,σ=1/14,S₀=1e5,E₀=90,I₀=12,R₀=5)
+plot(t,i,title=:Infectados,Axes(xlabel=:Dias,ylabel=:Infectados_prueba))
 ```
 
 ```julia
-function random_SEIR(dias,repeticiones;I₀=30,S₀=1e7,R₀=5,E₀=90,Rmin=2.2,Rmax=3.49,
-                        amax=1/5,amin=1/5,gmax=1/7,gmin=1/7)
-    I = []
-    S = []
-    R = []
-    E = []
-    for i in 0:dias
-        push!(I,Array{Float64,1}(undef, repeticiones))
-        push!(S,Array{Float64,1}(undef, repeticiones))
-        push!(R,Array{Float64,1}(undef, repeticiones))
-        push!(E,Array{Float64,1}(undef, repeticiones))
+t,S,E,I,R,N=random_SEIR(400,100000;I₀=30,S₀=6e4,R₀=5,E₀=90,Rmin=2.5,Rmax=3.3,
+                        amax=1/10,amin=1/15,gmax=1/10,gmin=1/15)
+P,n = ma_color(I,paso=100)
+label = "'1:"*""*string(N*n)*""*"'"
+imagesc(P, title=:Infectados_3,Axes(title = label, palette = :hot))
+save(term = "png",
+     output= "calor_3.png",
+     font = "Consolas,18",
+     size = "1280,900",
+     linewidth = 1,
+     background = "white")
+```
+
+```julia
+t,S,E,I,R=random_SEIR_2(400,100000;I0min=30,I0max=40,S0min=5e4,S0max=7e4
+                    ,R0min=5,R0max=10,E0min=90,E0max=100,Rmin=2.5,Rmax=3.3,
+                        amax=1/10,amin=1/15,gmax=1/10,gmin=1/15)
+P,n = ma_color(I,paso=100)
+label = "'1:"*""*string(n)*""*"'"
+imagesc(P, title=:Infectados_4,Axes(title = label, palette = :hot))
+save(term = "png",
+     output= "calor_4.png",
+     font = "Consolas,18",
+     size = "1280,900",
+     linewidth = 1,
+     background = "white")
+```
+
+# Datos de México
+
+```julia
+D = CSV.read("casos_mexico.csv")
+```
+
+```julia
+D[!,2][7]
+```
+
+```julia
+function datos_por_estado(D,number,nmax,nmin)
+    D_sol=Array{Float64,1}(undef, nmax-nmin+1)
+    días = []
+    for i in nmin:nmax
+        D_sol[i-nmin+1]=D[!,i][number]
     end
-    σ = rand()*(amax-amin)+amin
-    γ = rand()*(gmax-gmin)+gmin
-    for i in 1:repeticiones
-        β = γ*(rand()*(Rmax-Rmin)+Rmin)
-        s_r,e_r,i_r,r_r = SEIR(dias,σ,β,γ,I₀,S₀,R₀,E₀)
-        for j in 1:dias+1
-            I[j][i] = i_r[j]
-            S[j][i] = s_r[j]
-            R[j][i] = r_r[j]
-            E[j][i] = e_r[j]
-        end
-    end
-    t=0:1:dias
-    return t,S,E,I,R
+    return D_sol
 end
 ```
 
 ```julia
-t,S,E,I,R=random_SEIR(100,100000,Rmax=8.4,Rmin=2.95,S₀=1e10)
-histo(I[50],"Infectados día 50",bins=100)
+cdmx=datos_por_estado(D,7,140,80)
 ```
 
 ```julia
-t,S,E,I,R=random_SEIR(300,100000,Rmax=2.95,Rmin=2.68,S₀=1e10)
-histo(I[10],"Infectados día 10",bins=100)
+t,S,E,I,R,N=random_SEIR(60,100000;I₀=cdmx[1],S₀=6e4,R₀=5,E₀=90,Rmin=2.5,Rmax=3.3,
+                        amax=1/10,amin=1/15,gmax=1/10,gmin=1/15)
+P,n = ma_color(I,paso=100)
+label = "'1:"*""*string(N*n)*""*"'"
+imagesc(P, title=:Infectados_cdmx,Axes(title = label, palette = :hot))
+plot!(t,cdmx./(N*n),title=:Datos_reales)
+save(term = "png",
+     output= "calor_5.png",
+     font = "Consolas,18",
+     size = "1280,900",
+     linewidth = 1,
+     background = "white")
 ```
 
 ```julia
-histo(I[40],"Infectados día 40",bins=100)
-```
-
-```julia
-histo(I[80],"Infectados día 80",bins=100)
-```
-
-```julia
+t,S,E,I,R=random_SEIR_2(60,100000;I0min=cdmx[1],I0max=cdmx[1]*2,S0min=5e4,S0max=6e4,
+                        R0min=5,R0max=15,E0min=cdmx[1],E0max=cdmx[1],Rmin=2.5,Rmax=3.3,
+                        amax=1/10,amin=1/15,gmax=1/10,gmin=1/15)
+P,n = ma_color(I,paso=100)
+label = "'1:"*""*string(n)*""*"'"
+imagesc(P, title=:Infectados_cdmx_2,Axes(title = label, palette = :hot))
+plot!(t,cdmx./(n),title=:Datos_reales)
+save(term = "png",
+     output= "calor_6.png",
+     font = "Consolas,18",
+     size = "1280,900",
+     linewidth = 1,
+     background = "white")
 ```
